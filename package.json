@@ -1,0 +1,15 @@
+{
+  "name": "hcore",
+  "version": "1.0.0",
+  "description": "http2 server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "http2",
+    "webserver"
+  ],
+  "author": "alex@systemics.gr",
+  "license": "ISC"
+}
