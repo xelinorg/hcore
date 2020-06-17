@@ -39,17 +39,6 @@ HNode.prototype.insert = function hNodeInsert (root, symbol, code, length) {
   }
 }
 
-HNode.prototype.maskHuffmanBit = function hNodeMaskHuffmanBit (buffer) {
-  return buffer.reduce((nlacc, nlcur, idx) => {
-    if (idx) {
-      nlacc.push(nlcur)
-    } else {
-      nlacc.push(nlcur ^ 0x80)
-    }
-    return nlacc
-  }, [])
-}
-
 HNode.prototype.HUFFMAN_CODES = [
     0x1ff8,
     0x7fffd8,

@@ -1,6 +1,5 @@
+const htrace = require('./htrace')
 const hpack = require('./hpack')
-const hnode = require('./hnode').createFactory()
-const hnoderoot = hnode.buildTree(hnode.HUFFMAN_CODES, hnode.HUFFMAN_CODE_LENGTHS)
 
 function createServer(option) {
   const cryptoo = option && typeof option.ancryptoo === 'object' ? option.ancryptoo : {}
@@ -11,7 +10,7 @@ function createServer(option) {
   opt.port = option ? option.port : undefined
   opt.ALPNProtocols =  option.ALPNProtocols || ['h2', 'h2c']
 
-  const hcs = new HCore({hnoderoot: hnoderoot, hnode: hnode})
+  const hcs = new HCore()
   const tls = option && option.tls ? option.tls : null
   if (!tls) {
     return new Error('not tls provider')
@@ -40,12 +39,12 @@ function createServer(option) {
 function createClient(option) {
   const o = option || {}
   const opt = {
-    host: o.host || 'server.crl',
+    host: o.host || 'server.hcore',
     port: o.port || '4444',
     ca: o.ca
   }
 
-  const hcc= new HCore({hnoderoot: hnoderoot, hnode: hnode})
+  const hcc = new HCore()
   const connopt = {
     ca: opt.ca,
     ALPNProtocols: opt.ALPNProtocols || ['h2'],
@@ -70,11 +69,10 @@ function createClient(option) {
 }
 
 function HCore (option) {
-  this.hnoderoot = option.hnoderoot
-  this.hnode = option.hnode
   this.session = []
   this.socket = []
   this.trace = []
+  this.dynamicTable = []
 }
 
 HCore.prototype.prefaceMarker = Buffer.from('PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n')
@@ -96,78 +94,11 @@ HCore.prototype.dict = {
     number: 'number',
     object: 'object',
     string: 'string'
-  },
-  log: {
-    HCoreEnd: 'HCoreEnd'
   }
 }
 
-HCore.prototype.staticTable = [
-  [':authority'],
-  [':method', 'GET'],
-  [':method', 'POST'],
-  [':path', '/'],
-  [':path', '/index.html'],
-  [':scheme', 'http'],
-  [':scheme', 'https'],
-  ['status',  '200'],
-  ['status',  '204'],
-  ['status',  '206'],
-  ['status',  '304'],
-  ['status',  '400'],
-  ['status',  '404'],
-  ['status',  '500'],
-  ['accept-charset'],
-  ['accept-encoding', 'gzip, deflate'],
-  ['accept-language'],
-  ['accept-ranges'],
-  ['accept'],
-  ['access-control-allow-origin'],
-  ['age'],
-  ['allow'],
-  ['authorization'],
-  ['cache-control'],
-  ['content-disposition'],
-  ['content-encoding'],
-  ['content-language'],
-  ['content-length'],
-  ['content-location'],
-  ['content-range'],
-  ['content-type'],
-  ['cookie'],
-  ['date'],
-  ['etag'],
-  ['expect'],
-  ['expires'],
-  ['from'],
-  ['host'],
-  ['if-match'],
-  ['if-modified-since'],
-  ['if-none-match'],
-  ['if-range'],
-  ['if-unmodified-since'],
-  ['last-modified'],
-  ['link'],
-  ['location'],
-  ['max-forwards'],
-  ['proxy-authenticate'],
-  ['proxy-authorization'],
-  ['range'],
-  ['referer'],
-  ['refresh'],
-  ['retry-after'],
-  ['server'],
-  ['set-cookie'],
-  ['strict-transport-security'],
-  ['transfer-encoding'],
-  ['user-agent'],
-  ['vary'],
-  ['via'],
-  ['www-authenticate']
-]
-
-HCore.prototype.addSocket = function hCoreAddSocket  (socket) {
-  return this.socket.push(socket) -1
+HCore.prototype.addSocket = function hCoreAddSocket (socket) {
+  return this.socket.push(socket) - 1
 }
 
 HCore.prototype.errorCode = function hCoreErrorCode (raw) {
@@ -271,52 +202,7 @@ HCore.prototype.frame = function hCoreFrame (frameBuffer) {
   }, [])
 }
 
-HCore.prototype.readHuffman = function hCoreReadHuffman (literalBuf) {
-  const baos = []
-  const root = this.hnoderoot
-  let node = root
-  let current = 0
-  let bits = 0
-  for (let i = 0; i < literalBuf.length; i++) {
-    const b = literalBuf[i] & 0xFF
-    current = (current << 8) | b
-    bits += 8
-    while (bits >= 8) {
-      const c = (current >>> (bits - 8)) & 0xFF
-      node = node.children[c]
-      bits -= node.bits
-      if (node.isTerminal()) {
-        if (node.symbol === 256) {
-          throw new Error('EOS_DECODED')
-        }
-        baos.push(node.symbol)
-        node = root
-      }
-    }
-  }
-
-  while (bits > 0) {
-    const c = (current << (8 - bits)) & 0xFF
-    if (!node.isTerminal()) {
-      node = node.children[c]
-    }
-    if (node.isTerminal() && node.bits <= bits) {
-      bits -= node.bits
-      baos.push(node.symbol)
-    } else {
-      break
-    }
-  }
-
-  let mask = (1 << bits) - 1
-  if ((current & mask) != mask) {
-    throw new Error('INVALID_PADDING')
-  }
-
-  return Buffer.from(baos)
-}
-
-HCore.prototype.frameGoAway = function hCoreFrameGoAway( rawInner) {
+HCore.prototype.frameGoAway = function hCoreFrameGoAway (rawInner) {
   const goaway = {
     lastStreamId: rawInner.slice(0, 4).readUIntBE(0, 4),
     errorCode: rawInner.slice(4, 8).readUIntBE(0, 4),
@@ -332,7 +218,7 @@ HCore.prototype.frameData = function hCoreFrameData(rawInner, flag) {
   return rawInner.toString()
 }
 
-HCore.prototype.framePriority = function hCoreFramePriority(rawInner) {
+HCore.prototype.framePriority = function hCoreFramePriority (rawInner) {
   return {
     depedency: rawInner.readUIntBE(0, 4),
     weigth: rawInner.readUInt8(4),
@@ -340,7 +226,7 @@ HCore.prototype.framePriority = function hCoreFramePriority(rawInner) {
   }
 }
 
-HCore.prototype.frameSetting = function hCoreFrameSetting(rawInner) {
+HCore.prototype.frameSetting = function hCoreFrameSetting (rawInner) {
   return rawInner.reduce((acc, cur) => {
     const next = acc.length
     if (!next || !acc[next-1] || acc[next-1].length != 2){
@@ -363,28 +249,7 @@ HCore.prototype.frameSetting = function hCoreFrameSetting(rawInner) {
   }, [])
 }
 
-HCore.prototype.headerField = function hCoreHeaderField (current) {
-  return {
-    prefix: current,
-    indexed: [],
-    name: {
-      nlength: [],
-      octets:[]
-    },
-    value: {
-      vlength: [],
-      octets: []
-    },
-    decoded: []
-  }
-}
-
 HCore.prototype.decodeHeaderBlock = function hCoreDecodeHeaderBlock (rawInner, flag) {
-  let readingFor = -1
-  let readingIndex = false
-  let readingLength = false
-  let readingString = false
-  let isHuffman = false
   let cleanHeaderField = rawInner
   const depedency = {}
   // we should take care of padding first.. needs implementation
@@ -399,162 +264,7 @@ HCore.prototype.decodeHeaderBlock = function hCoreDecodeHeaderBlock (rawInner, f
 
     cleanHeaderField = rawInner.slice(5, rawInner.length)
   }
-  const decodedHeadField = cleanHeaderField.reduce((acc, cur, hfidx, src) => {
-
-    if (readingFor >= 0){
-      const readingAcc = acc[readingFor]
-      // for sure not reading the first byte, all readings have length
-      // if not we are in the begining on a new read
-      if (readingString) {
-        if (readingAcc.decoded.length === 0) {
-          readingAcc.name.octets.push(cur)
-          const nameLengthArray = isHuffman ? this.hnode.maskHuffmanBit(readingAcc.name.nlength) : readingAcc.name.nlength
-          const decodedLength = hpack.decodeInteger(nameLengthArray, 0x7f)
-          if (decodedLength === readingAcc.name.octets.length) {
-            const name = isHuffman ? this.readHuffman(readingAcc.name.octets): Buffer.from(readingAcc.name.octets)
-            readingAcc.decoded.push(name.toString())
-            readingString = false
-            isHuffman = false
-            readingLength = true
-          }
-        } else if (readingAcc.decoded.length === 1) {
-          readingAcc.value.octets.push(cur)
-          const valueLengthArray = isHuffman ? this.hnode.maskHuffmanBit(readingAcc.value.vlength) : readingAcc.value.vlength
-          const decodedLength = hpack.decodeInteger(valueLengthArray, 0x7f)
-          if (decodedLength === readingAcc.value.octets.length) {
-            const value = isHuffman ? this.readHuffman(readingAcc.value.octets) : Buffer.from(readingAcc.value.octets)
-            readingAcc.decoded.push(value.toString())
-            readingString = false
-            isHuffman = false
-            readingFor = -1
-          }
-        } else {
-        new Error('hCoreDecodeHeaderBlock reading string error')
-        }
-      } else if (readingLength) {
-        if (readingAcc.decoded.length === 0) {
-          readingAcc.name.nlength.push(cur)
-          if (readingAcc.name.nlength.length === 1) {
-            isHuffman = cur > 0x80
-            if ((isHuffman && cur !== 0xff) || (!isHuffman && cur !== 0x7f)) {
-              readingString = true
-              readingLength = false
-            }
-          } else if (cur < 0x80 ) {
-              readingString = true
-              readingLength = false
-          }
-        } else if (readingAcc.decoded.length === 1) {
-          readingAcc.value.vlength.push(cur)
-          if (readingAcc.value.vlength.length === 1) {
-            isHuffman = cur > 0x80
-            if ((isHuffman && cur !== 0xff) || (!isHuffman && cur !== 0x7f)) {
-              readingString = true
-              readingLength = false
-            }
-          } else if (cur < 0x80 ) {
-              readingString = true
-              readingLength = false
-          }
-        } else {
-          new Error('hCoreDecodeHeaderBlock reading length error')
-        }
-      } else if (readingIndex){
-        readingAcc.indexed.push(cur)
-        if (cur < 0x80 ) {
-          readingIndex = false
-          readingLength = true
-          const indexedFieldArray = [readingAcc.prefix].concat(readingAcc.indexed)
-          const idx = hpack.decodeInteger(indexedFieldArray, readingAcc.prefix) -1
-          const name = idx < this.staticTable.length ? this.staticTable[idx][0] : 'helloHelloDynHeader'
-          readingAcc.decoded.push(name)
-        }
-      } else {
-        const nameLengthReads = [0x70, 0x00, 0x10, 0x40]
-        if (!readingLength && nameLengthReads.includes(readingAcc.prefix) && readingAcc.name.nlength.length === 0){
-          readingLength = true
-          isHuffman = cur > 0x80
-          readingAcc.name.nlength.push(cur)
-          if ((isHuffman && cur !== 0xff) || (!isHuffman && cur !== 0x7f)) {
-            readingString = true
-            readingLength = false
-          }
-        }
-        if (!readingLength && readingAcc.value.vlength.length === 0 && readingAcc.decoded.length === 1){
-          readingLength = true
-          isHuffman = cur > 0x80
-          readingAcc.value.vlength.push(cur)
-          if ((isHuffman && cur !== 0xff) || (!isHuffman && cur !== 0x7f)) {
-            readingString = true
-            readingLength = false
-          }
-        }
-        const indexReads = [0xff, 0x7f, 0x0f, 0x1f, 0x3f] // 0x3f matches Dynamic Table Size Update
-        if (!readingIndex && indexReads.includes(readingAcc.prefix) && readingAcc.indexed.length === 0){
-          readingIndex = true
-          readingAcc.indexed.push(cur)
-          if (cur < 0x80 ) {
-            readingIndex = false
-            readingLength = true
-            const indexedFieldArray = [readingAcc.prefix].concat(readingAcc.indexed)
-            const idx = hpack.decodeInteger(indexedFieldArray, 0x7f) - 1
-            const name = idx < this.staticTable.length ? this.staticTable[idx][0] : 'helloHelloDynHeader'
-            readingAcc.decoded.push(name)
-          }
-        }
-      }
-    } else if (readingFor < 0) {
-      // we create a new instance of a headerField with prefix the current byte
-      const headerField = this.headerField(cur)
-      if (cur > 0x80) {
-        // 6.1. Indexed Header Field Representation
-        if (cur !== 0xff){
-          // we are done
-          const idx = (cur ^ 0x80)-1
-          const completePair = idx < this.staticTable.length ? this.staticTable[idx] : ['dynamicHeaderX', 'dynamicValueX']
-          headerField.decoded.push(completePair[0], completePair[1])
-          // he have to make sure we do not raize reading and friends on the end !!!
-        }
-      } else if (cur >= 0x40) {
-        // 6.2.1. Literal Header Field with Incremental Indexing
-        if (cur !== 0x7f && cur !== 0x40){
-          const idx = (cur ^ 0x40)-1
-          const headerFieldName = idx < this.staticTable.length ?  this.staticTable[idx][0] : ['dynamicHeaderX', 'dynamicValueX']
-          headerField.decoded.push(headerFieldName)        }
-      } else if (cur > 0x20 && cur <= 0x3f) {
-        // 6.3. Dynamic Table Size Update
-        if (cur !== 0x3f) {
-          headerField.decoded.push('Dynamic Table Size Update', cur^0x20)
-        }
-      } else if (cur > 0x10 && cur <= 0x1f) {
-        // 6.2.3. Literal Header Field Never Indexed
-        if (cur !== 0x1f && cur !== 0x10){
-          const idx = (cur ^ 0x10)-1
-          const headerFieldName = idx < this.staticTable.length ? this.staticTable[idx][0] : ['dynamicHeaderX', 'dynamicValueX']
-          headerField.decoded.push(headerFieldName)
-        }
-      } else if (cur >= 0 && cur <= 0x0f) {
-        // 6.2.2. Literal Header Field without Indexing
-        if (cur !== 0x0f && cur !== 0x00){
-          const headerFieldName = this.staticTable[cur-1][0]
-          headerField.decoded.push(headerFieldName)
-        }
-      } else {
-        new Error('hCoreDecodeHeaderBlock no initial header field match error')
-      }
-
-      // if 6.1. Indexed Header Field Representation is done (there is name and value)
-      // or if is 6.3. Dynamic Table Size Update loop for the next header field
-      // all other cases should set the reading flag and friends
-      if ((!(cur > 0x20 && cur <= 0x3f) && !(cur > 0x80 && cur !== 0xff))) {
-        readingFor = acc.push(headerField) - 1
-      } else {
-        acc.push(headerField)
-      }
-    }
-
-    return acc
-  }, [])
+  const decodedHeadField = hpack.headerFieldProcessor(cleanHeaderField, this.dynamicTable)
 
   return {depedency: depedency, headerField: decodedHeadField}
 }
@@ -566,8 +276,10 @@ HCore.prototype.setting = function hCoreSetting (option) {
   return Buffer.from([0,0,0,4,0,0,0,0,0])
 }
 
-HCore.prototype.stop = function hCoreStop() {
-  console.log('HCoreStop args', arguments)
+HCore.prototype.reset = function hCoreReset(socket) {
+  if (socket) {
+    socket.destroy()
+  }
 }
 
 HCore.prototype.handoverPotocolToHVersion = function hCoreHandoverPotocolToHVersion (alpnProtocol) {
@@ -583,14 +295,14 @@ HCore.prototype.handoverPotocolToHVersion = function hCoreHandoverPotocolToHVers
 
 HCore.prototype.handover = function hCoreHandover (socket, connectmeta) {
   socket.on(this.dict.on.data, (data) => {
-    this.start(socket, data, this.handoverPotocolToHVersion(socket.alpnProtocol))
+    this.tick(socket, data, this.handoverPotocolToHVersion(socket.alpnProtocol))
   })
   socket.on(this.dict.on.error, (err) => {
-    this.stop(err)
+    this.reset(err)
   })
 }
 
-HCore.prototype.start = function hCoreStart (socket, raw, handoverProtocol) {
+HCore.prototype.tick = function hCoreTick (socket, raw, handoverProtocol) {
   let socketIdx = this.socket.indexOf(socket)
   if ( socketIdx >= 0 ) {
     // socket is already in the stack, check for missing detection or discover if this
@@ -598,7 +310,7 @@ HCore.prototype.start = function hCoreStart (socket, raw, handoverProtocol) {
     if (raw && this.trace[socketIdx][0] === socket) {
       const hversion = handoverProtocol || this.trace[socketIdx][1].hversion.toUpperCase()
       if (hversion === 'HTTP/2') {
-        this.frame(raw).forEach(f=>this.trace[socketIdx].push({frame:f, state:1}))
+        this.frame(raw).forEach(f=>this.trace[socketIdx][1].frame({frame:f, state:9}))
       } else {
         new Error('hCoreStart hversion is not defined on read error')
       }
@@ -609,16 +321,39 @@ HCore.prototype.start = function hCoreStart (socket, raw, handoverProtocol) {
     const detected = this.detecthttp(raw, handoverProtocol)
     socketIdx = this.socket.push(socket) - 1
     const traceIdx = this.trace.push([socket]) - 1
-    this.trace[traceIdx].push(detected.hversion)
-    detected.frameStack.forEach(f=>this.trace[traceIdx].push({frame:f, state:1}))
+    const trace = htrace.createFactory()
+    this.trace[traceIdx].push(trace)
+    detected.frameStack.forEach(f=>this.trace[traceIdx][1].frame({frame:f, state:9}))
   }
   // check all went well
+  if (this.trace[socketIdx][0] === socket && this.trace[socketIdx].length >= 1) {
+    const trace = this.trace[socketIdx][1]
+    const hversion = trace.hversion.toUpperCase()
+    const helloMessage = 'hello http world'
+    if (hversion === 'HTTP/2') {
+      trace.frameTable.forEach(e => {
+        if (e.state === 9 && e.frame.type === 'h2_header') {
+          e.state = 0
+          const h2hello = helloMessage.concat(e.frame.cured.headerField.reduce((dfacc, dfcur)=>{
+            return dfacc.concat('<br/>'.concat(dfcur.decoded.join(' : ')))
+          },''))
+          this.sendSetting(socket)
+          this.sendTextPayload(h2hello, e.frame.streamId, socket)
+        }
+      })
+    } else {
+      new Error('hCoreStart hversion is not defined on write error')
+    }
+  }
+}
+
+HCore.prototype.sendHello = function hCoreSendHello (socket, raw) {
   if (this.trace[socketIdx][0] === socket && this.trace[socketIdx].length >= 1) {
     const hversion = this.trace[socketIdx][1].toUpperCase()
     const helloMessage = 'hello http world'
     if (hversion === 'HTTP/2') {
       this.trace[socketIdx].forEach(e => {
-        if (e.state === 1 && e.frame.type === 'h2_header') {
+        if (e.state === 9 && e.frame.type === 'h2_header') {
           e.state = 0
           const h2hello = helloMessage.concat(e.frame.cured.headerField.reduce((dfacc, dfcur)=>{
             return dfacc.concat('<br/>'.concat(dfcur.decoded.join(' : ')))
@@ -637,14 +372,13 @@ HCore.prototype.sendSetting = function hCoreSendSetting (socket, raw) {
   return socket.write(typeof raw === this.dict.global.string ? raw : this.setting(raw))
 }
 
-HCore.prototype.encodeHeaderBlock = function hCoreEncodeHeaderBlock (header) {
-  const status200 = Buffer.from([(8 | 0x80)])
+HCore.prototype.encodeHeaderBlock = function hCoreEncodeHeaderBlock (header, starter) {
   return Object.keys(header).reduce((hacc, hcur) => {
     //this is very fake if the index is not found we set a string :/
-    const headerIndexFieldName = this.staticTable.findIndex(hidx=>hidx[0]===hcur) + 1 || hcur
+    const headerIndexFieldName = hpack.staticTable.findIndex(hidx=>hidx[0]===hcur) + 1 || hcur
     const bufout = []
     const valBuffer = Buffer.from(header[hcur].toString())
-    if (hacc.length > 0) {
+    if (hacc && hacc.length > 0) {
       bufout.push(hacc)
     }
     bufout.push(
@@ -653,9 +387,7 @@ HCore.prototype.encodeHeaderBlock = function hCoreEncodeHeaderBlock (header) {
       Buffer.from(valBuffer)
     )
     return Buffer.concat(bufout)
-
-  }, status200)
-
+  }, starter)
 }
 
 HCore.prototype.sendTextPayload = function hCoreSendTextPayload (payload, streamId, socket) {
@@ -663,10 +395,11 @@ HCore.prototype.sendTextPayload = function hCoreSendTextPayload (payload, stream
   const rawStreamId = Buffer.from([0, 0, 0, streamId])
 
   const headerFlag = Buffer.from([4])
+  const status200 = Buffer.from([(8 | 0x80)])
   const headerBlock = this.encodeHeaderBlock({
     'content-type': 'text/html; charset=UTF-8',
     'content-length': rawMsg.length
-  })
+  }, status200)
   const headerLength = Buffer.from([0, 0, headerBlock.length])
   const headerFrameType = Buffer.from([1])
   const helloheader = Buffer.concat([headerLength, headerFrameType, headerFlag, rawStreamId, headerBlock])
@@ -691,6 +424,23 @@ HCore.prototype.sendTextPayload = function hCoreSendTextPayload (payload, stream
     const dataFrameType = Buffer.from([0])
     socket.write(Buffer.concat([fragLength, dataFrameType, dataFlag, rawStreamId, frag]))
   } while (!done)
+}
+
+HCore.prototype.request = function hCoreRequest(option) {
+  if (!option) return
+  const idx = option.idx || 0
+  const nextStreamId = this.trace[idx] >= 1 ? this.trace[idx][1].getStream() : 1
+  const rawStreamId = Buffer.from([0, 0, 0, nextStreamId])
+  const headerFlag = Buffer.from([4])
+  const headerBlock = this.encodeHeaderBlock(option.header)
+  const headerLength = Buffer.from([0, 0, headerBlock.length])
+  const headerFrameType = Buffer.from([1])
+  const headerFrame = Buffer.concat([headerLength, headerFrameType, headerFlag, rawStreamId, headerBlock])
+  this.socket[idx].write(headerFrame)
+}
+
+HCore.prototype.reply = function hCoreReply(option) {
+
 }
 
 // upper socket aka tls, start
@@ -721,8 +471,8 @@ HCore.prototype.ocspRequest = function hCoreOcspRequest (certificate, issuer, ca
   callback(null, null)
 }
 
-HCore.prototype.end = function hCoreEnd () {
-  this.stop()
+HCore.prototype.end = function hCoreEnd (socket) {
+  this.reset(socket)
 }
 
 HCore.prototype.connection = function hCoreConnection (socket) {
