@@ -16,9 +16,11 @@ function spawner (option) {
     const hcopt = {
       ancryptoo: opt.ancryptoo,
       port: anutil.portCheck(opt.port),
+      ALPNProtocols: option.ALPNProtocols || ['h2', 'h2c'],
       tls: tls
     }
     const hcoreInstance = hcore.createServer(hcopt)
+    console.debug('server spawned...');
     return hcoreInstance
   }
 }

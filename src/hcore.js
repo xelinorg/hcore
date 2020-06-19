@@ -8,7 +8,7 @@ function createServer(option) {
   opt.cert = cryptoo.cert
   opt.ca = cryptoo.ca
   opt.port = option ? option.port : undefined
-  opt.ALPNProtocols =  option.ALPNProtocols || ['h2', 'h2c']
+  opt.ALPNProtocols =  option.ALPNProtocols
 
   const hcs = new HCore()
   const tls = option && option.tls ? option.tls : null
@@ -39,15 +39,16 @@ function createServer(option) {
 function createClient(option) {
   const o = option || {}
   const opt = {
-    host: o.host || 'server.hcore',
-    port: o.port || '4444',
-    ca: o.ca
+    host: o.host,
+    port: o.port,
+    ca: o.ca,
+    ALPNProtocols: o.ALPNProtocols
   }
 
   const hcc = new HCore()
   const connopt = {
     ca: opt.ca,
-    ALPNProtocols: opt.ALPNProtocols || ['h2'],
+    ALPNProtocols: opt.ALPNProtocols,
     heckServerIdentity: opt.heckServerIdentity
   }
   const tls = option && option.tls ? option.tls : null
@@ -174,7 +175,7 @@ HCore.prototype.frameHandler = function hCoreFrameHandler (type) {
   const frameOption = {
     'raw': (inner) => inner,
     'h2_goaway': this.frameGoAway.bind(this),
-    'h2_header': this.decodeHeaderBlock.bind(this),
+    'h2_header': this.frameHeader.bind(this),
     'h2_data': this.frameData.bind(this),
     'h2_priority': this.framePriority.bind(this),
     'h2_setting': this.frameSetting.bind(this),
@@ -249,7 +250,7 @@ HCore.prototype.frameSetting = function hCoreFrameSetting (rawInner) {
   }, [])
 }
 
-HCore.prototype.decodeHeaderBlock = function hCoreDecodeHeaderBlock (rawInner, flag) {
+HCore.prototype.frameHeader = function hCoreFrameHeader (rawInner, flag) {
   let cleanHeaderField = rawInner
   const depedency = {}
   // we should take care of padding first.. needs implementation

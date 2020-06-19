@@ -82,7 +82,7 @@ function doRequest (reqArray) {
   })
 }
 
-const client = http2.connect('https://server.crl:4444', {
+const client = http2.connect('https://server.hcore:4444', {
   ca: ancryptoo.ca
 })
 
