@@ -1,4 +1,4 @@
-.nmprc
+.npmrc
 # crypto
 crypto/*.pem
 crypto/*.key
