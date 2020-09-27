@@ -1,15 +1,36 @@
 {
-  "name": "hcore",
+  "name": "@xelinorg/hcore",
   "version": "0.1.0",
   "description": "http2 server",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start:hcore": "node index.js hcore 4444",
+    "debug:hcore": "node --inspect index.js hcore 4444",
+    "debug:htls": "node --inspect src/htls.js htls 4443"
   },
   "keywords": [
     "http2",
-    "webserver"
+    "web",
+    "server"
   ],
   "author": "alex@systemics.gr",
-  "license": "ISC"
+  "license": "ISC",
+  "directories": {
+    "doc": "doc",
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/xelinorg/hcore.git"
+  },
+  "bugs": {
+    "url": "https://gitlab.com/xelinorg/hcore/issues"
+  },
+  "homepage": "https://gitlab.com/xelinorg/hcore#readme",
+  "devDependencies": {
+    "eslint": "^6.8.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint-plugin-import": "^2.21.2"
+  }
 }

@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+
 const cryptopath = path.resolve(__dirname)
 module.exports = {
   // Necessary only if the server requires client certificate authentication.
@@ -10,5 +11,5 @@ module.exports = {
   ca: [fs.readFileSync(cryptopath.concat('/', 'rootCA.crt.pem'))],
 
   // Necessary only if the server's cert isn't for "localhost".
-  checkServerIdentity: () => { return null; },
-};
+  checkServerIdentity: () => null
+}

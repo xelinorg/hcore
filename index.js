@@ -1,4 +1,5 @@
 const hcore = require('./src')
+const ancryptoo = require('./crypto/cryptoption')
 
 const dict = {
   use: {
@@ -12,13 +13,12 @@ const dict = {
 }
 
 if (process.argv.length > 2 && Object.keys(dict.use).includes(process.argv[2])) {
-  const ancryptoo = require('./crypto/cryptoption')
   const instance = process.argv[2]
-  const port = process.argv[3] ? parseInt(process.argv[3]) : 0
+  const port = process.argv[3] ? parseInt(process.argv[3], 10) : 0
   const opt = {
-    instance: instance,
-    port: port,
-    ancryptoo: ancryptoo,
+    instance,
+    port,
+    ancryptoo,
     dict: {
       global: dict.global,
       use: dict.use
@@ -26,6 +26,6 @@ if (process.argv.length > 2 && Object.keys(dict.use).includes(process.argv[2])) 
   }
   hcore.spawn(opt)
 } else {
-  module.exports.automnet = hcore
-  module.exports.andict = hcore
+  module.exports.hcore = hcore
+  module.exports.andict = dict
 }
