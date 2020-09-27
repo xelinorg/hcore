@@ -1,7 +1,9 @@
-const { spawn } = require("child_process")
+const { spawn } = require('child_process')
 const tls = require('tls')
 
-const anutil = require('./util')
+const logger = console
+
+const hcutil = require('./util')
 const hcore = require('./hcore')
 
 function spawner (option) {
@@ -10,19 +12,21 @@ function spawner (option) {
   opt.ancryptoo = option.ancryptoo
   opt.spawn = spawn
   opt.httpcore = hcore
-  opt.port = option.port ? anutil.portCheck(option.port) : undefined
+  opt.port = option.port ? hcutil.portCheck(option.port) : undefined
   opt.dict = option.dict || {}
   if (opt.instance === opt.dict.use.hcore) {
     const hcopt = {
       ancryptoo: opt.ancryptoo,
-      port: anutil.portCheck(opt.port),
+      port: hcutil.portCheck(opt.port),
       ALPNProtocols: option.ALPNProtocols || ['h2', 'h2c'],
-      tls: tls
+      tls
     }
     const hcoreInstance = hcore.createServer(hcopt)
-    console.debug('server spawned...');
+    logger.debug('server spawned...port is '.concat(hcopt.port))
     return hcoreInstance
   }
+  return {}
 }
 
 module.exports.spawn = spawner
+module.exports.hcutil = hcutil
