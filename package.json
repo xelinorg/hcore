@@ -5,9 +5,16 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "clean:build": "rm -rf build",
+    "clean:lib": "rm -rf node_modules",
+    "clean": "npm run clean:build",
+    "generate:crypto": "bash crypto/script.sh",
     "start:hcore": "node index.js hcore 4444",
     "debug:hcore": "node --inspect index.js hcore 4444",
-    "debug:htls": "node --inspect src/htls.js htls 4443"
+    "debug:htls": "node --inspect src/htls.js htls 4443",
+    "build:bundle": "npx webpack --config prod.webpack.config.js",
+    "start:prepare": "npm run build:bundle && cp -R crypto/*.pem build",
+    "start:bundle": "npm run start:prepare && node build/hcore.js hcore 4444"
   },
   "keywords": [
     "http2",
@@ -31,6 +38,8 @@
   "devDependencies": {
     "eslint": "^6.8.0",
     "eslint-config-airbnb-base": "^14.2.0",
-    "eslint-plugin-import": "^2.21.2"
+    "eslint-plugin-import": "^2.21.2",
+    "webpack": "^4.44.2",
+    "webpack-cli": "^3.3.12"
   }
 }

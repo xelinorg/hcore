@@ -1,3 +1,4 @@
+cd crypto
 echo "ca and peer key and crt pems"
 echo "add server.crl on hosts file"
 CA_SUBJ="/C=gh/ST=Athens/L=Europe/O=hcore/CN=CA.hcore"
