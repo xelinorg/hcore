@@ -1,3 +1,6 @@
+.build
+build
+.dist
 .npmrc
 # crypto
 crypto/*.pem

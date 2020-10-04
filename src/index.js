@@ -1,13 +1,13 @@
 const { spawn } = require('child_process')
 const tls = require('tls')
 
-const logger = console
-
 const hcutil = require('./util')
 const hcore = require('./hcore')
+const hserver = require('./hserver')
 
 function spawner (option) {
   const opt = {}
+  const logger = option.logger || console
   opt.instance = option.instance
   opt.ancryptoo = option.ancryptoo
   opt.spawn = spawn
@@ -30,3 +30,4 @@ function spawner (option) {
 
 module.exports.spawn = spawner
 module.exports.hcutil = hcutil
+module.exports.hserver = hserver
