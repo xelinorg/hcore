@@ -23,16 +23,20 @@ config.externals = fs
 
 config.resolve = {
   mainFields: ['module', 'main'],
-  extensions: ['.js', '.json']
-}
-
-config.node = {
-  console: false,
-  global: false,
-  process: false,
-  Buffer: false,
-  __filename: false,
-  __dirname: false
+  extensions: ['.js', '.json'],
+  fallback: {
+    dgram: false,
+    fs: false,
+    net: false,
+    tls: false,
+    child_process: false,
+    console: false,
+    global: false,
+    process: false,
+    Buffer: false,
+    __filename: false,
+    __dirname: false
+  }
 }
 
 config.output = {
